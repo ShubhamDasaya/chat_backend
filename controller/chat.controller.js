@@ -138,17 +138,29 @@ export const updateMessage = async (req, res) => {
 export const getMessages = async (req, res) => {
     try {
         const { chatId } = req.params;
+        const { limit = 30, before } = req.query;
         if (!await ChatRoom.findById(chatId)) return sendError(res, "Chat not found");
 
-        const messages = await Message.find({ chatId, deleted: { $ne: true } })
+        const query = { chatId, deleted: { $ne: true } };
+        if (before) {
+            const beforeMsg = await Message.findById(before);
+            if (beforeMsg) {
+                query.createdAt = { $lt: beforeMsg.createdAt };
+            }
+        }
+
+        const messages = await Message.find(query)
             .populate("sender", "name avatar")
             .populate("reactions.user", "name")
             .populate({
                 path: "parentMessage",
                 populate: { path: "sender", select: "name" }
             })
-            .sort({ createdAt: 1 })
+            .sort({ createdAt: -1 })
+            .limit(parseInt(limit))
             .lean();
+
+        messages.reverse();
 
         return sendSuccess(res, "Messages fetched", messages);
     } catch (err) { return sendServerError(res, err); }

@@ -9,6 +9,7 @@ import authRoutes from "./router/auth.routes.js";
 import chatRoutes from "./router/chat.routes.js";
 import connectDb from "./db/db.config.js";
 import User from "./model/User.js";
+import mongoose from "mongoose";
 
 dotenv.config();
 
@@ -28,6 +29,17 @@ app.use("/uploads", express.static("uploads"));
 
 app.use("/auth", authRoutes);
 app.use("/chat", chatRoutes);
+
+// Health Check Router
+app.get("/health", (req, res) => {
+    const dbStatus = mongoose.connection.readyState === 1 ? "connected" : "disconnected";
+    res.status(200).json({
+        status: "healthy",
+        uptime: process.uptime(),
+        timestamp: new Date(),
+        database: dbStatus,
+    });
+});
 
 // ================= SOCKET =================
 const io = new Server(server, {

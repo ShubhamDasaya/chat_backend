@@ -2,6 +2,7 @@ import User from '../model/User.js';
 import bcrypt from 'bcryptjs';
 import { sendError, sendServerError, sendSuccess } from '../helper/helper.js';
 import { generateToken } from '../helper/jwt.js';
+import { ChatRoom } from '../model/ChatRoom.js';
 
 // ===== Register =====
 export const registerUser = async (req, res) => {
@@ -115,9 +116,28 @@ export const searchUsers = async (req, res) => {
                 ]},
                 { _id: { $ne: req.user._id } }
             ]
-        }).select("-password").limit(10);
+        }).select("-password").limit(10).lean();
 
-        return sendSuccess(res, "Users fetched successfully", users);
+        const groups = await ChatRoom.find({
+            name: { $regex: query, $options: "i" },
+            $or: [
+                { type: "public" },
+                { type: "group", members: req.user._id }
+            ]
+        }).limit(10).lean();
+
+        const formattedUsers = users.map(u => ({ ...u, isGroup: false }));
+        const formattedGroups = groups.map(g => ({
+            _id: g._id,
+            name: g.name,
+            avatar: g.image,
+            type: g.type,
+            isGroup: true
+        }));
+
+        const results = [...formattedUsers, ...formattedGroups];
+
+        return sendSuccess(res, "Users fetched successfully", results);
     } catch (error) {
         return sendServerError(res, error);
     }
