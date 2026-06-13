@@ -19,7 +19,6 @@ const server = http.createServer(app);
 
 // Connect DB & reset all users to offline
 connectDb().then(async () => {
-    console.log("Database connected, resetting online status...");
     await User.updateMany({}, { online: false }).catch(console.error);
 });
 
@@ -50,7 +49,6 @@ const io = new Server(server, {
 const userSocketMap = new Map(); // socket.id → userId
 
 io.on("connection", (socket) => {
-    console.log("New connection:", socket.id);
 
     socket.on("setup", async (userData) => {
         const userId = typeof userData === 'string' ? userData : userData?._id;

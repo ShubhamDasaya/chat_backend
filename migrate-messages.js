@@ -18,19 +18,15 @@ import { ChatRoom } from "./model/ChatRoom.js";
 dotenv.config();
 
 async function migrate() {
-    console.log("🔄 Starting migration: Backfill chatId on messages...\n");
 
     try {
         await mongoose.connect(process.env.MONGO_URL);
-        console.log("✅ Connected to MongoDB\n");
 
         const messages = await Message.find({
             $or: [{ chatId: { $exists: false } }, { chatId: null }]
         });
 
-        console.log(`📨 Found ${messages.length} messages without chatId\n`);
         if (!messages.length) {
-            console.log("✅ No migration needed — all messages already have chatId!");
             return;
         }
 
@@ -46,9 +42,7 @@ async function migrate() {
                 if (chatRoom) {
                     await Message.findByIdAndUpdate(msg._id, { chatId: chatRoom._id });
                     updated++;
-                    if (updated % 50 === 0) console.log(`   ...processed ${updated} messages`);
                 } else {
-                    console.log(`⚠️  No ChatRoom found for message ${msg._id}`);
                     skipped++;
                 }
             } catch (err) {
@@ -57,12 +51,7 @@ async function migrate() {
             }
         }
 
-        console.log("\n========== MIGRATION COMPLETE ==========");
-        console.log(`✅ Updated:  ${updated}`);
-        console.log(`⚠️  Skipped:  ${skipped}`);
-        console.log(`❌ Failed:   ${failed}`);
-        console.log(`📊 Total:    ${messages.length}`);
-        console.log("========================================\n");
+
     } catch (err) {
         console.error("❌ Migration failed:", err);
     } finally {

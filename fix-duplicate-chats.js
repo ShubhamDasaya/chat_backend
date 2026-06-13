@@ -6,11 +6,9 @@ import { Message } from "./model/Message.js";
 dotenv.config();
 
 async function fix() {
-    console.log("🔄 Scanning for duplicate ChatRooms...\n");
 
     try {
         await mongoose.connect(process.env.MONGO_URL);
-        console.log("✅ Connected to MongoDB\n");
 
         const allChats = await ChatRoom.find({ type: "single" });
 
@@ -26,7 +24,6 @@ async function fix() {
 
         for (const [key, chats] of pairMap.entries()) {
             if (chats.length <= 1) continue;
-            console.log(`⚠️  Found ${chats.length} ChatRooms for pair: ${key}`);
 
             // Count messages per chat, keep the one with most (or oldest)
             const withCounts = await Promise.all(
@@ -43,19 +40,12 @@ async function fix() {
                 if (count > 0) {
                     const result = await Message.updateMany({ chatId: dup._id }, { chatId: keeper._id });
                     messagesReassigned += result.modifiedCount;
-                    console.log(`   📦 Moved ${result.modifiedCount} messages: ${dup._id} → ${keeper._id}`);
                 }
                 await ChatRoom.findByIdAndDelete(dup._id);
                 duplicatesRemoved++;
-                console.log(`   🗑️  Deleted duplicate: ${dup._id}`);
             }
-            console.log(`   ✅ Kept: ${keeper._id}\n`);
         }
 
-        console.log("========== FIX COMPLETE ==========");
-        console.log(`🗑️  Duplicates removed:  ${duplicatesRemoved}`);
-        console.log(`📦 Messages reassigned: ${messagesReassigned}`);
-        console.log("==================================\n");
     } catch (err) {
         console.error("❌ Fix failed:", err);
     } finally {
