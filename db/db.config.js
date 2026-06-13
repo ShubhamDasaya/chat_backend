@@ -24,8 +24,8 @@ dotenv.config();
 // Force Node.js to use Google's DNS servers
 // This bypasses local network DNS issues that cause querySrv ECONNREFUSED
 dns.setServers(['8.8.8.8', '1.1.1.1']);
-console.log('MONGO_URL:', process.env.MONGO_URL);
-console.log('PORT:', process.env.PORT);
+// console.log('MONGO_URL:', process.env.MONGO_URL);
+// console.log('PORT:', process.env.PORT);
 const connectDb = async () => {
     try {
         // Optional: Log which database we're connecting to (without exposing password)
