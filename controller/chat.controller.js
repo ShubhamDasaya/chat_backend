@@ -39,7 +39,8 @@ export const getMyChats = async (req, res) => {
         })
             .populate("members", "name email avatar online")
             .populate("lastMessage")
-            .sort({ updatedAt: -1 });
+            .sort({ updatedAt: -1 })
+            .lean();
 
         return sendSuccess(res, "Chats fetched", chats);
     } catch (err) { return sendServerError(res, err); }
@@ -48,8 +49,10 @@ export const getMyChats = async (req, res) => {
 // ===== Send Message =====
 export const sendMessage = async (req, res) => {
     try {
-        const { content, chatId } = req.body;
-        if (!content || !chatId) return sendError(res, "Content & chatId required");
+        const { content, chatId, media, mediaType, parentMessageId } = req.body;
+        if ((!content && (!media || media.length === 0)) || !chatId) {
+            return sendError(res, "Content or media, and chatId are required");
+        }
 
         const chat = await ChatRoom.findById(chatId);
         if (!chat) return sendError(res, "Chat not found");
@@ -60,10 +63,18 @@ export const sendMessage = async (req, res) => {
 
         const message = await Message.create({
             sender: req.user._id, chatId, chatType: chat.type,
-            receiver, content, seenBy: [req.user._id]
+            receiver, content, seenBy: [req.user._id],
+            media, mediaType,
+            parentMessage: parentMessageId || null
         });
 
-        const fullMsg = await Message.findById(message._id).populate("sender", "name avatar");
+        const fullMsg = await Message.findById(message._id)
+            .populate("sender", "name avatar")
+            .populate("reactions.user", "name")
+            .populate({
+                path: "parentMessage",
+                populate: { path: "sender", select: "name" }
+            });
         await ChatRoom.findByIdAndUpdate(chatId, { lastMessage: message._id });
 
         return sendSuccess(res, "Message sent", fullMsg);
@@ -131,7 +142,13 @@ export const getMessages = async (req, res) => {
 
         const messages = await Message.find({ chatId, deleted: { $ne: true } })
             .populate("sender", "name avatar")
-            .sort({ createdAt: 1 });
+            .populate("reactions.user", "name")
+            .populate({
+                path: "parentMessage",
+                populate: { path: "sender", select: "name" }
+            })
+            .sort({ createdAt: 1 })
+            .lean();
 
         return sendSuccess(res, "Messages fetched", messages);
     } catch (err) { return sendServerError(res, err); }
@@ -247,5 +264,59 @@ export const removeContact = async (req, res) => {
     try {
         await User.findByIdAndUpdate(req.user._id, { $pull: { contacts: req.params.contactId } });
         return sendSuccess(res, "Contact removed");
+    } catch (err) { return sendServerError(res, err); }
+};
+
+// ===== Upload Media File =====
+export const uploadMedia = async (req, res) => {
+    try {
+        if (!req.file) return sendError(res, "No file uploaded");
+
+        const fileUrl = `/uploads/${req.file.filename}`;
+        let mediaType = "other";
+        const mime = req.file.mimetype;
+        if (mime.startsWith("image/")) mediaType = "image";
+        else if (mime.startsWith("video/")) mediaType = "video";
+        else if (mime === "application/pdf") mediaType = "pdf";
+
+        return sendSuccess(res, "File uploaded", {
+            fileUrl,
+            mediaType,
+            fileName: req.file.originalname
+        });
+    } catch (err) { return sendServerError(res, err); }
+};
+
+// ===== React to Message =====
+export const reactToMessage = async (req, res) => {
+    try {
+        const { messageId } = req.params;
+        const { emoji } = req.body;
+        const myId = req.user._id;
+        if (!emoji) return sendError(res, "Emoji required");
+
+        const msg = await Message.findById(messageId);
+        if (!msg) return sendError(res, "Message not found");
+
+        const existingReactionIndex = msg.reactions.findIndex(
+            r => r.user.toString() === myId.toString()
+        );
+
+        if (existingReactionIndex > -1) {
+            if (msg.reactions[existingReactionIndex].emoji === emoji) {
+                msg.reactions.splice(existingReactionIndex, 1);
+            } else {
+                msg.reactions[existingReactionIndex].emoji = emoji;
+            }
+        } else {
+            msg.reactions.push({ user: myId, emoji });
+        }
+
+        await msg.save();
+        const updatedMsg = await Message.findById(messageId)
+            .populate("sender", "name avatar")
+            .populate("reactions.user", "name");
+
+        return sendSuccess(res, "Reaction updated", updatedMsg);
     } catch (err) { return sendServerError(res, err); }
 };

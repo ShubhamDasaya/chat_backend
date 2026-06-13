@@ -2,10 +2,10 @@ import express from "express";
 import {
     accessChat, getMyChats, sendMessage, getMessages,
     markSeen, deleteMessage, createGroup, getPublicChat, removeContact,
-    updateMessage, updateGroup, leaveGroup
+    updateMessage, updateGroup, leaveGroup, uploadMedia, reactToMessage
 } from "../controller/chat.controller.js";
 import { authenticateToken } from "../helper/jwt.js";
-import { uploadAvatarMiddleware } from "../helper/multer.js";
+import { uploadAvatarMiddleware, uploadMediaMiddleware } from "../helper/multer.js";
 
 const router = express.Router();
 
@@ -21,5 +21,7 @@ router.put("/group", authenticateToken, uploadAvatarMiddleware, updateGroup);
 router.post("/leave", authenticateToken, leaveGroup);
 router.get("/public", authenticateToken, getPublicChat);
 router.delete("/contact/:contactId", authenticateToken, removeContact);
+router.post("/upload", authenticateToken, uploadMediaMiddleware, uploadMedia);
+router.post("/react/:messageId", authenticateToken, reactToMessage);
 
 export default router;

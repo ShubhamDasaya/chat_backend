@@ -9,7 +9,14 @@ const messageSchema = new mongoose.Schema({
     media:     [{ type: String }],
     mediaType: [{ type: String, enum: ["image", "video", "pdf", "other"] }],
     seenBy:    [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    deleted:   { type: Boolean, default: false }
+    deleted:   { type: Boolean, default: false },
+    reactions: [{
+        user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+        emoji: { type: String, required: true }
+    }],
+    parentMessage: { type: mongoose.Schema.Types.ObjectId, ref: "Message" }
 }, { timestamps: true });
+
+messageSchema.index({ chatId: 1, createdAt: 1 });
 
 export const Message = mongoose.model("Message", messageSchema);

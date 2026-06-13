@@ -3,6 +3,7 @@ import http from "http";
 import { Server } from "socket.io";
 import cors from "cors";
 import dotenv from 'dotenv';
+import compression from "compression";
 
 import authRoutes from "./router/auth.routes.js";
 import chatRoutes from "./router/chat.routes.js";
@@ -12,6 +13,7 @@ import User from "./model/User.js";
 dotenv.config();
 
 const app = express();
+app.use(compression());
 const server = http.createServer(app);
 
 // Connect DB & reset all users to offline
@@ -60,6 +62,10 @@ io.on("connection", (socket) => {
     socket.on("typing", (chatId) => chatId && socket.to(chatId).emit("typing", chatId));
     socket.on("stopTyping", (chatId) => chatId && socket.to(chatId).emit("stopTyping", chatId));
 
+    socket.on("updateMessage", ({ chatId, message }) => {
+        if (chatId && message) socket.to(chatId).emit("messageUpdated", message);
+    });
+
     socket.on("messageUpdated", ({ chatId, message }) => {
         if (chatId && message) socket.to(chatId).emit("messageUpdated", message);
     });
@@ -72,12 +78,20 @@ io.on("connection", (socket) => {
         if (chatId && messageId) socket.to(chatId).emit("broadcastDelete", { chatId, messageId });
     });
 
+    socket.on("messageReaction", ({ chatId, messageId, reactions }) => {
+        if (chatId && messageId && reactions) socket.to(chatId).emit("receiveReaction", { messageId, reactions });
+    });
+
     socket.on("newGroupCreated", (data) => {
         if (!data?.members) return;
         data.members.forEach((member) => {
             const memberId = typeof member === 'object' ? member._id : member;
             socket.to(memberId.toString()).emit("groupAdded", data);
         });
+    });
+
+    socket.on("updateGroup", (data) => {
+        if (data?._id) socket.to(data._id).emit("groupUpdated", data);
     });
 
     socket.on("disconnect", async () => {

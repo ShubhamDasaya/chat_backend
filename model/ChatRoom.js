@@ -9,4 +9,6 @@ const chatRoomSchema = new mongoose.Schema({
     lastMessage: { type: mongoose.Schema.Types.ObjectId, ref: "Message" }
 }, { timestamps: true });
 
+chatRoomSchema.index({ members: 1 });
+
 export const ChatRoom = mongoose.model("ChatRoom", chatRoomSchema);
