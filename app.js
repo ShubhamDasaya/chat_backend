@@ -2,7 +2,7 @@ import express from "express";
 import http from "http";
 import { Server } from "socket.io";
 import cors from "cors";
-import dotenv from 'dotenv';
+import dotenv from "dotenv";
 import compression from "compression";
 
 import authRoutes from "./router/auth.routes.js";
@@ -14,25 +14,52 @@ import mongoose from "mongoose";
 dotenv.config();
 
 const app = express();
-app.use(compression());
 const server = http.createServer(app);
 
-// Connect DB & reset all users to offline
+/* ================= DATABASE ================= */
 connectDb().then(async () => {
     await User.updateMany({}, { online: false }).catch(console.error);
 });
 
-app.use(cors());
+/* ================= CORS CONFIG ================= */
+const allowedOrigins = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "https://chat-frontend-mbkx0aojz-shubham-dasayas-projects.vercel.app",
+    "https://huskier-willfully-debroah.ngrok-free.dev"
+];
+
+app.use(cors({
+    origin: function (origin, callback) {
+        // allow mobile apps / postman / server-to-server
+        if (!origin) return callback(null, true);
+
+        if (allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        } else {
+            return callback(null, true); // ⚠️ dev mode relaxed (you can tighten later)
+        }
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
+}));
+
 app.options("*", cors());
+
+/* ================= MIDDLEWARE ================= */
+app.use(compression());
 app.use(express.json());
 app.use("/uploads", express.static("uploads"));
 
+/* ================= ROUTES ================= */
 app.use("/auth", authRoutes);
 app.use("/chat", chatRoutes);
 
-// Health Check Router
+/* ================= HEALTH CHECK ================= */
 app.get("/health", (req, res) => {
     const dbStatus = mongoose.connection.readyState === 1 ? "connected" : "disconnected";
+
     res.status(200).json({
         status: "healthy",
         uptime: process.uptime(),
@@ -41,23 +68,31 @@ app.get("/health", (req, res) => {
     });
 });
 
-// ================= SOCKET =================
+/* ================= SOCKET.IO ================= */
 const io = new Server(server, {
-    cors: { origin: "*" },
-    pingTimeout: 60000,
+    cors: {
+        origin: allowedOrigins,
+        credentials: true
+    },
+    pingTimeout: 60000
 });
 
-const userSocketMap = new Map(); // socket.id → userId
+const userSocketMap = new Map();
 
 io.on("connection", (socket) => {
 
     socket.on("setup", async (userData) => {
-        const userId = typeof userData === 'string' ? userData : userData?._id;
+        const userId = typeof userData === "string"
+            ? userData
+            : userData?._id;
+
         if (!userId) return;
 
         socket.join(userId);
         userSocketMap.set(socket.id, userId);
+
         await User.findByIdAndUpdate(userId, { online: true });
+
         socket.broadcast.emit("userOnline", userId);
     });
 
@@ -66,54 +101,45 @@ io.on("connection", (socket) => {
     });
 
     socket.on("sendMessage", ({ chatId, message }) => {
-        if (chatId && message) socket.to(chatId).emit("receiveMessage", message);
+        if (chatId && message) {
+            socket.to(chatId).emit("receiveMessage", message);
+        }
     });
 
-    // Typing indicators
-    socket.on("typing", (chatId) => chatId && socket.to(chatId).emit("typing", chatId));
-    socket.on("stopTyping", (chatId) => chatId && socket.to(chatId).emit("stopTyping", chatId));
-
-    socket.on("updateMessage", ({ chatId, message }) => {
-        if (chatId && message) socket.to(chatId).emit("messageUpdated", message);
+    socket.on("typing", (chatId) => {
+        if (chatId) socket.to(chatId).emit("typing", chatId);
     });
 
-    socket.on("messageUpdated", ({ chatId, message }) => {
-        if (chatId && message) socket.to(chatId).emit("messageUpdated", message);
+    socket.on("stopTyping", (chatId) => {
+        if (chatId) socket.to(chatId).emit("stopTyping", chatId);
     });
 
     socket.on("messageSeen", ({ chatId, userId }) => {
-        if (chatId && userId) socket.to(chatId).emit("messageSeenUpdate", { chatId, userId });
+        if (chatId && userId) {
+            socket.to(chatId).emit("messageSeenUpdate", { chatId, userId });
+        }
     });
 
     socket.on("messageDeleted", ({ chatId, messageId }) => {
-        if (chatId && messageId) socket.to(chatId).emit("broadcastDelete", { chatId, messageId });
-    });
-
-    socket.on("messageReaction", ({ chatId, messageId, reactions }) => {
-        if (chatId && messageId && reactions) socket.to(chatId).emit("receiveReaction", { messageId, reactions });
-    });
-
-    socket.on("newGroupCreated", (data) => {
-        if (!data?.members) return;
-        data.members.forEach((member) => {
-            const memberId = typeof member === 'object' ? member._id : member;
-            socket.to(memberId.toString()).emit("groupAdded", data);
-        });
-    });
-
-    socket.on("updateGroup", (data) => {
-        if (data?._id) socket.to(data._id).emit("groupUpdated", data);
+        if (chatId && messageId) {
+            socket.to(chatId).emit("broadcastDelete", { chatId, messageId });
+        }
     });
 
     socket.on("disconnect", async () => {
         const userId = userSocketMap.get(socket.id);
-        if (!userId) return;
-        await User.findByIdAndUpdate(userId, { online: false });
-        socket.broadcast.emit("userOffline", userId);
-        userSocketMap.delete(socket.id);
+
+        if (userId) {
+            await User.findByIdAndUpdate(userId, { online: false });
+            socket.broadcast.emit("userOffline", userId);
+            userSocketMap.delete(socket.id);
+        }
     });
 });
 
-// ================= SERVER =================
+/* ================= START SERVER ================= */
 const PORT = process.env.PORT || 8000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+server.listen(PORT, "0.0.0.0", () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+});
