@@ -26,27 +26,32 @@ const allowedOrigins = [
     "http://localhost:3000",
     "http://localhost:5173",
     "https://chat-frontend-mbkx0aojz-shubham-dasayas-projects.vercel.app",
-    "https://huskier-willfully-debroah.ngrok-free.dev"
+    "https://*.vercel.app"
 ];
 
 app.use(cors({
     origin: function (origin, callback) {
-        // allow mobile apps / postman / server-to-server
         if (!origin) return callback(null, true);
 
-        if (allowedOrigins.includes(origin)) {
+        const isAllowed =
+            allowedOrigins.includes(origin) ||
+            origin.endsWith(".vercel.app") ||
+            origin.includes("ngrok");
+
+        if (isAllowed) {
             return callback(null, true);
-        } else {
-            return callback(null, true); // ⚠️ dev mode relaxed (you can tighten later)
         }
+
+        return callback(new Error("CORS blocked: " + origin), false);
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"]
+    allowedHeaders: [
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With"
+    ]
 }));
-
-app.options("*", cors());
-
 /* ================= MIDDLEWARE ================= */
 app.use(compression());
 app.use(express.json());
