@@ -23,14 +23,9 @@ connectDb().then(async () => {
 
 /* ================= CORS (FINAL FIX) ================= */
 app.use(cors({
-    origin: [
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "https://chat-frontend-mbkx0aojz-shubham-dasayas-projects.vercel.app"
-    ],
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"]
+    origin: "*",
+    methods: "*",
+    allowedHeaders: "*"
 }));
 
 /* ================= IMPORTANT PRE-FLIGHT HANDLER ================= */
