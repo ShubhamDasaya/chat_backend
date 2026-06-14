@@ -21,37 +21,48 @@ connectDb().then(async () => {
     await User.updateMany({}, { online: false }).catch(console.error);
 });
 
-/* ================= CORS CONFIG ================= */
+/* ================= CORS (FINAL FIX) ================= */
 const allowedOrigins = [
     "http://localhost:3000",
     "http://localhost:5173",
-    "https://chat-frontend-mbkx0aojz-shubham-dasayas-projects.vercel.app",
-    "https://*.vercel.app"
+    "https://chat-frontend-mbkx0aojz-shubham-dasayas-projects.vercel.app"
 ];
 
 app.use(cors({
     origin: function (origin, callback) {
+        // allow tools like Postman
         if (!origin) return callback(null, true);
 
-        const isAllowed =
+        // allow Vercel + local + safety fallback
+        if (
             allowedOrigins.includes(origin) ||
             origin.endsWith(".vercel.app") ||
-            origin.includes("ngrok");
-
-        if (isAllowed) {
+            origin.includes("ngrok")
+        ) {
             return callback(null, true);
         }
 
-        return callback(new Error("CORS blocked: " + origin), false);
+        return callback(null, true); // keep relaxed for dev stability
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: [
-        "Content-Type",
-        "Authorization",
-        "X-Requested-With"
-    ]
+    allowedHeaders: ["Content-Type", "Authorization"]
 }));
+
+/* ================= IMPORTANT PRE-FLIGHT HANDLER ================= */
+app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.header("Access-Control-Allow-Credentials", "true");
+
+    if (req.method === "OPTIONS") {
+        return res.sendStatus(200);
+    }
+
+    next();
+});
+
 /* ================= MIDDLEWARE ================= */
 app.use(compression());
 app.use(express.json());
@@ -76,7 +87,7 @@ app.get("/health", (req, res) => {
 /* ================= SOCKET.IO ================= */
 const io = new Server(server, {
     cors: {
-        origin: allowedOrigins,
+        origin: "*", // socket is more relaxed (important for chat apps)
         credentials: true
     },
     pingTimeout: 60000
