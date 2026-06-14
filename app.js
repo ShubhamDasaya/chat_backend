@@ -22,28 +22,12 @@ connectDb().then(async () => {
 });
 
 /* ================= CORS (FINAL FIX) ================= */
-const allowedOrigins = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "https://chat-frontend-mbkx0aojz-shubham-dasayas-projects.vercel.app"
-];
-
 app.use(cors({
-    origin: function (origin, callback) {
-        // allow tools like Postman
-        if (!origin) return callback(null, true);
-
-        // allow Vercel + local + safety fallback
-        if (
-            allowedOrigins.includes(origin) ||
-            origin.endsWith(".vercel.app") ||
-            origin.includes("ngrok")
-        ) {
-            return callback(null, true);
-        }
-
-        return callback(null, true); // keep relaxed for dev stability
-    },
+    origin: [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://chat-frontend-mbkx0aojz-shubham-dasayas-projects.vercel.app"
+    ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"]
@@ -154,8 +138,6 @@ io.on("connection", (socket) => {
 });
 
 /* ================= START SERVER ================= */
-const PORT = process.env.PORT || 8000;
-
-server.listen(PORT, "0.0.0.0", () => {
-    console.log(`🚀 Server running on port ${PORT}`);
+server.listen(8000, "0.0.0.0", () => {
+    console.log("Server running on port 8000");
 });
