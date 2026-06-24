@@ -2,6 +2,8 @@ import { ChatRoom } from "../model/ChatRoom.js";
 import { Message } from "../model/Message.js";
 import User from "../model/User.js";
 import { sendSuccess, sendError, sendServerError } from "../helper/helper.js";
+import fs from "fs/promises";
+import path from "path";
 
 // ===== Create / Get Single Chat =====
 export const accessChat = async (req, res) => {
@@ -189,6 +191,23 @@ export const deleteMessage = async (req, res) => {
         if (msg.sender.toString() !== req.user._id.toString())
             return sendError(res, "Only sender can delete");
 
+        // Delete associated physical media files if they exist
+        if (msg.media && msg.media.length > 0) {
+            for (const mediaUrl of msg.media) {
+                if (mediaUrl.startsWith("/uploads/")) {
+                    const filename = mediaUrl.replace("/uploads/", "");
+                    const filePath = path.join("uploads", filename);
+                    try {
+                        await fs.unlink(filePath);
+                    } catch (err) {
+                        console.error("Failed to delete file from disk:", filePath, err.message);
+                    }
+                }
+            }
+            msg.media = [];
+            msg.mediaType = [];
+        }
+
         msg.deleted = true;
         msg.content = "This message was deleted";
         await msg.save();
@@ -262,6 +281,23 @@ export const updateGroup = async (req, res) => {
         if (name) updateData.name = name;
         if (req.file) updateData.image = `/uploads/${req.file.filename}`;
         else if (req.body.imageLink) updateData.image = req.body.imageLink;
+
+        if (req.body.members) {
+            let membersArray = [];
+            try {
+                membersArray = JSON.parse(req.body.members);
+            } catch (e) {
+                if (typeof req.body.members === "string") {
+                    membersArray = req.body.members.split(",").map(m => m.trim());
+                } else if (Array.isArray(req.body.members)) {
+                    membersArray = req.body.members;
+                }
+            }
+            if (Array.isArray(membersArray)) {
+                const uniqueMembers = [...new Set([group.admin.toString(), ...membersArray.map(String)])];
+                updateData.members = uniqueMembers;
+            }
+        }
 
         const updated = await ChatRoom.findByIdAndUpdate(chatId, updateData, { new: true })
             .populate("members", "name email avatar online")
